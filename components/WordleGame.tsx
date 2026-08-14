@@ -10,15 +10,13 @@ import { compareWords, type LettreStatut } from "@/lib/compare";
 import type { ReponseMotDuJour } from "@/lib/daily";
 import { EVENEMENT_DEMANDE_INDICE, EVENEMENT_MAJ_SCORE } from "@/lib/events";
 import { MAX_ESSAIS, calculerMaxIndices, calculerScore } from "@/lib/scoring";
-import motsJson from "@/app/data/ligue1/wordle.json";
+import { verifierSaisie } from "@/lib/guard";
 import { ecrireDerniereTaille, ecrireSauvegarde, lireDernieretaille, lireSauvegarde, partieVierge, 
   lireHistorique, ecrireHistorique, lireStatsGlobales, ecrireStatsGlobales, type StatsGlobales, 
   type EtatPartie, type SauvegardeDuJour, } from "@/lib/sauvegarde";
 
 const LONGUEURS_DISPONIBLES = [4, 5, 6, 7, 8];
 const LONGUEUR_PAR_DEFAUT = 5;
-
-const MotsClient = motsJson.words as Record<string, string[]>;
 
 //Couleur des touches du clavier apres un essai (vert -> jaune -> gris)
 function fusionnerStatuts(
@@ -146,20 +144,18 @@ export default function WordleGame() {
 
         const essai = currentGuess.toUpperCase();
 
+        //Appel aux boucliers guard.ts
+        const erreurSaisie = verifierSaisie(essai, partie.essais, wordLength);
+
         //Bouclier anti doublons
-        if (partie.essais.includes(essai)) {
+        if (erreurSaisie === "doublon") {
           afficherToast("Tu as déjà essayé ce mot !");
           setIsShaking(true);
           setTimeout(() => setIsShaking(false), 400);
           return;
         }
-
         //Bouclier anti mots inventés
-        const listeDeMots = MotsClient[wordLength.toString()] || [];
-        const motValide = listeDeMots.some(
-          (motDuDictionnaire) => motDuDictionnaire.toUpperCase() === essai.toUpperCase()
-        );
-        if (!motValide) {
+        if (erreurSaisie === "invalide") {
           afficherToast("Ce mot n'est pas dans la liste !");
           setIsShaking(true);
           setTimeout(() => setIsShaking(false), 400);
