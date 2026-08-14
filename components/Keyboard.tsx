@@ -12,12 +12,12 @@ export default function Keyboard({ onKeyPress, letterStatuses, activeKey }: Keyb
     const rows = [
         ['A', 'Z', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P'],
         ['Q', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L', 'M'],
-        ['ENTRER', 'W', 'X', 'C', 'V', 'B', 'N', 'SUPPRIMER']
+        ['SUPPRIMER', 'W', 'X', 'C', 'V', 'B', 'N', 'ENTRER']
     ];
 
 return (
     //conteneur principal du clavier
-    <div className="flex flex-col gap-2 items-center my-6 w-full max-w-2xl mx-auto px-6">
+    <div className="flex flex-col gap-2 items-center my-6 w-[500px] max-w-[100vw] mx-auto px-2">
       {rows.map((row, rowIndex) => (
         <div key={rowIndex} className="flex gap-1.5 justify-center w-full">
           {row.map((key) => {
