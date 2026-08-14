@@ -37,257 +37,341 @@ function fusionnerStatuts(
   }
 
 export default function WordleGame() {
-    const [wordLength, setWordLength] = useState(LONGUEUR_PAR_DEFAUT); //5 lettres par defaut
-    const [currentGuess, setCurrentGuess] = useState("");
 
-    //Copie de toutes les grilles du jour (chaque taille) dans le localStorage
-    const [sauvegarde, setSauvegarde] = useState<SauvegardeDuJour | null>(null);
-    const [numeroGrille, setNumeroGrille] = useState<number | null>(null);
+  const [wordLength, setWordLength] = useState(LONGUEUR_PAR_DEFAUT); //5 lettres par defaut
+  const [currentGuess, setCurrentGuess] = useState("");
 
-    //Blocage double-clic
-    const [isLoading, setIsLoading] = useState(false);
+  //Copie de toutes les grilles du jour (chaque taille) dans le localStorage
+  const [sauvegarde, setSauvegarde] = useState<SauvegardeDuJour | null>(null);
+  const [numeroGrille, setNumeroGrille] = useState<number | null>(null);
 
-    const [erreur, setErreur] = useState(false);
-    const [activeKey, setActiveKey] = useState<string | null>(null);
-    const [toastMessage, setToastMessage] = useState<string | null>(null);
-    const [isShaking, setIsShaking] = useState(false);
+  //Blocage double-clic
+  const [isLoading, setIsLoading] = useState(false);
 
-    const [isReportClosed, setIsReportClosed] = useState(false);
+  const [erreur, setErreur] = useState(false);
+  const [activeKey, setActiveKey] = useState<string | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [isShaking, setIsShaking] = useState(false);
 
-    const partie = sauvegarde?.parties[wordLength] ?? null;
+  const [isReportClosed, setIsReportClosed] = useState(false);
+  const [showEndReport, setShowEndReport] = useState(false);
 
-    const afficherToast = useCallback((message: string) => {
-        setToastMessage(message);
-        setTimeout(() => setToastMessage(null), 2500);
-    }, []);
-
-    //La grille courante est mise en mémoire et dans le localStorage
-    const majPartie = useCallback((longueur: number, nouvelle: EtatPartie) => {
-        setSauvegarde((precedente) => {
-            if (!precedente) return precedente;
-            const suivante = {
-                date: precedente.date,
-                parties: { ...precedente.parties, [longueur]: nouvelle },
-            };
-            ecrireSauvegarde(suivante);
-            return suivante;
-        });
-    }, []);
-
-    //Charge du mot du jour : grille vierge ou celle commencée auj
-    const chargerGrille = useCallback(async (longueur: number) => {
-        try {
-            const response = await fetch(`/api/game?length=${longueur}`);
-            if (!response.ok) throw new Error(`API: ${response.status}`);
-            const data: ReponseMotDuJour = await response.json();
-
-            //lireSauvegarde jette automatiquement les anciennes grilles
-            const enCache = lireSauvegarde(data.date);
-            const existante = enCache.parties[longueur];
-            //Si le mot change, on repart de 0
-            const grille = existante?.solution === data.secret 
-            ? existante : partieVierge(data.secret);
-
-            const aJour = { 
-                date: data.date,
-                parties: { ...enCache.parties, [longueur]: grille},
-            };
-            ecrireSauvegarde(aJour);
-            ecrireDerniereTaille(longueur);
-
-            setSauvegarde(aJour);
-            setNumeroGrille(data.numero);
-            setWordLength(longueur);
-            setCurrentGuess("");
-            setErreur(false);
-        } catch (error) {
-            console.error(error);
-            setErreur(true);
-        } finally {
-            setIsLoading(false);
-        }
-    }, []);
-
-    //Synchronisation : reprise de la derniere longueur jouée
-    useEffect(() => {
-        chargerGrille(lireDernieretaille(LONGUEUR_PAR_DEFAUT));
-    }, [chargerGrille]);
-
-    const changerLongueur = (longueur: number) => {
-        if (isLoading) return;
-        setIsLoading(true);
-        chargerGrille(longueur);
-    };
-
-    //Gestion du clavier physique
-    const handleKeyPress = (key: string) => {
-        if (!partie || !sauvegarde || partie.statut !== "playing") return;
-
-        if (key === "SUPPRIMER") {
-        setCurrentGuess((prev) => prev.slice(0, -1));
-        return;
-        }
-
-        if (key !== "ENTRER") {
-        if (key.length === 1 && currentGuess.length < wordLength) {
-            setCurrentGuess((prev) => prev + key.toUpperCase());
-        }
-        return;
-        }
-
-        if (currentGuess.length !== wordLength) {
-            afficherToast(`Le mot doit faire ${wordLength} lettres`);
-            setIsShaking(true);
-            setTimeout(() => setIsShaking(false), 400);
-            return;
-        }
-
-        const essai = currentGuess.toUpperCase();
-
-        //Appel aux boucliers guard.ts
-        const erreurSaisie = verifierSaisie(essai, partie.essais, wordLength);
-
-        //Bouclier anti doublons
-        if (erreurSaisie === "doublon") {
-          afficherToast("Tu as déjà essayé ce mot !");
-          setIsShaking(true);
-          setTimeout(() => setIsShaking(false), 400);
-          return;
-        }
-        //Bouclier anti mots inventés
-        if (erreurSaisie === "invalide") {
-          afficherToast("Ce mot n'est pas dans la liste !");
-          setIsShaking(true);
-          setTimeout(() => setIsShaking(false), 400);
-          return;
-        }
-
-        const evaluation = compareWords(essai, partie.solution);
-        const essais = [...partie.essais, essai];
-        const gagne = evaluation.every((statut) => statut === "correct");
-        const perdu = !gagne && essais.length >= MAX_ESSAIS;
-
-        let scoreObtenu = null;
-
-        if (gagne || perdu ) {
-            const date = sauvegarde.date;
-
-            scoreObtenu = calculerScore({
-                gagne,
-                essaisUtilises: essais.length,
-                indicesUtilises: partie.indicesUtilises,
-                longueurMot: partie.solution.length,
-            });
-
-            //Lecture de l'historique
-            const historique = lireHistorique();
-            //Verification points aujourd'hui
-            const scoreExistant = historique[date] || 0;
-            //Addition du nouveau score avec l'existant
-            const nouveauScoreDuJour = scoreExistant + (scoreObtenu || 0);
-            //Meilleur score gardé et sauvegarde
-            historique[date] = nouveauScoreDuJour;
-            ecrireHistorique(historique);
-
-            const statsCourantes = lireStatsGlobales();
-            const stats: StatsGlobales = statsCourantes ? statsCourantes : { partiesJouees: 0, 
-                victoires: 0, record: 0 };
-            
-            stats.partiesJouees += 1;
-            if (gagne) stats.victoires += 1;
-
-            stats.record = Math.max(stats.record, nouveauScoreDuJour);
-
-            ecrireStatsGlobales(stats);
-
-            window.dispatchEvent(new Event(EVENEMENT_MAJ_SCORE));
-        }
-
-        const grille: EtatPartie = {
-            ...partie,
-            essais,
-            evaluations: [...partie.evaluations, evaluation],
-            statutsLettres: fusionnerStatuts(
-                partie.statutsLettres,
-                essai,
-                evaluation,
-            ),
-            statut: gagne ? "won" : perdu ? "lost" : "playing",
-            score: scoreObtenu,
-        };
-
-        majPartie(wordLength, grille);
-        setCurrentGuess("");
-    };
-
-    //L'ecoute du clavier est posée qu'une fois, la ref lui donne toujours la derniere version
-    const handleKeyPressRef = useRef(handleKeyPress);
-    useEffect(() => {
-        handleKeyPressRef.current = handleKeyPress;
-    });
-
-    useEffect(() => {
-        const onKeyDown = (event: KeyboardEvent) => {
-            if (event.ctrlKey || event.metaKey || event.altKey) return;
-            const touche = event.key.toUpperCase();
-
-            let action: string | null = null;
-            if (event.key === "Enter") action = "ENTRER";
-            else if (event.key === "Backspace") action = "SUPPRIMER";
-            else if (/^[A-Z]$/.test(touche)) action = touche;
-            if (!action) return;
-
-            setActiveKey(action);
-            setTimeout(() => setActiveKey(null), 150);
-            handleKeyPressRef.current(action);
-        };
-
-        window.addEventListener("keydown", onKeyDown);
-        return () => window.removeEventListener("keydown", onKeyDown);
-    }, []);
-
-    //Bouton indice
-    useEffect(() => {
-    const surDemandeIndice = () => {
-      if (!partie || partie.statut !== "playing") return;
-
-      const limiteIndices = calculerMaxIndices(wordLength);
-
-      if (partie.indicesUtilises >= limiteIndices) {
-        afficherToast(`${limiteIndices} indices maximum par grille.`);
-        return;
+  useEffect(() => {
+      if (sauvegarde) {
+          const recompenseReclamee = localStorage.getItem(`bilan_ferme_${sauvegarde.date}`);
+          if (recompenseReclamee === "true") {
+              setIsReportClosed(true); // On cache la fenêtre si déjà fermée avant
+          }
       }
+  }, [sauvegarde]);
 
-      //Lettres du mot ni vertes ni jaunes sur le clavier
-      const manquantes = [...new Set(partie.solution.split(""))].filter(
-        (lettre) =>
-          partie.statutsLettres[lettre] !== "correct" &&
-          partie.statutsLettres[lettre] !== "present",
-      );
+  const partie = sauvegarde?.parties[wordLength] ?? null;
 
-      if (manquantes.length === 0) {
-        afficherToast("Tu as déjà trouvé toutes les lettres !");
-        return;
-      }
+  const afficherToast = useCallback((message: string) => {
+      setToastMessage(message);
+      setTimeout(() => setToastMessage(null), 2500);
+  }, []);
 
-      const lettre = manquantes[Math.floor(Math.random() * manquantes.length)];
-      majPartie(wordLength, {
-        ...partie,
-        statutsLettres: { ...partie.statutsLettres, [lettre]: "present" },
-        indicesUtilises: partie.indicesUtilises + 1,
+  //La grille courante est mise en mémoire et dans le localStorage
+  const majPartie = useCallback((longueur: number, nouvelle: EtatPartie) => {
+      setSauvegarde((precedente) => {
+          if (!precedente) return precedente;
+          const suivante = {
+              date: precedente.date,
+              parties: { ...precedente.parties, [longueur]: nouvelle },
+          };
+          ecrireSauvegarde(suivante);
+          return suivante;
       });
-      afficherToast(`Indice : le mot contient un ${lettre} (score réduit)`);
+  }, []);
+
+  //Charge du mot du jour : grille vierge ou celle commencée auj
+  const chargerGrille = useCallback(async (longueur: number) => {
+      try {
+          const response = await fetch(`/api/game?length=${longueur}`);
+          if (!response.ok) throw new Error(`API: ${response.status}`);
+          const data: ReponseMotDuJour = await response.json();
+
+          //lireSauvegarde jette automatiquement les anciennes grilles
+          const enCache = lireSauvegarde(data.date);
+          const existante = enCache.parties[longueur];
+          //Si le mot change, on repart de 0
+          const grille = existante?.solution === data.secret 
+          ? existante : partieVierge(data.secret);
+
+          const aJour = { 
+              date: data.date,
+              parties: { ...enCache.parties, [longueur]: grille},
+          };
+          ecrireSauvegarde(aJour);
+          ecrireDerniereTaille(longueur);
+
+          setSauvegarde(aJour);
+          setNumeroGrille(data.numero);
+          setWordLength(longueur);
+          setCurrentGuess("");
+          setErreur(false);
+      } catch (error) {
+          console.error(error);
+          setErreur(true);
+      } finally {
+          setIsLoading(false);
+      }
+  }, []);
+
+  //Synchronisation : reprise de la derniere longueur jouée
+  useEffect(() => {
+      chargerGrille(lireDernieretaille(LONGUEUR_PAR_DEFAUT));
+  }, [chargerGrille]);
+
+  const changerLongueur = (longueur: number) => {
+      if (isLoading) return;
+      setIsLoading(true);
+      chargerGrille(longueur);
+  };
+
+  //Gestion du clavier physique
+  const handleKeyPress = (key: string) => {
+      if (!partie || !sauvegarde || partie.statut !== "playing") return;
+
+      if (key === "SUPPRIMER") {
+      setCurrentGuess((prev) => prev.slice(0, -1));
+      return;
+      }
+
+      if (key !== "ENTRER") {
+      if (key.length === 1 && currentGuess.length < wordLength) {
+          setCurrentGuess((prev) => prev + key.toUpperCase());
+      }
+      return;
+      }
+
+      if (currentGuess.length !== wordLength) {
+          afficherToast(`Le mot doit faire ${wordLength} lettres`);
+          setIsShaking(true);
+          setTimeout(() => setIsShaking(false), 400);
+          return;
+      }
+
+      const essai = currentGuess.toUpperCase();
+
+      //Appel aux boucliers guard.ts
+      const erreurSaisie = verifierSaisie(essai, partie.essais, wordLength);
+
+      //Bouclier anti doublons
+      if (erreurSaisie === "doublon") {
+        afficherToast("Tu as déjà essayé ce mot !");
+        setIsShaking(true);
+        setTimeout(() => setIsShaking(false), 400);
+        return;
+      }
+      //Bouclier anti mots inventés
+      if (erreurSaisie === "invalide") {
+        afficherToast("Ce mot n'est pas dans la liste !");
+        setIsShaking(true);
+        setTimeout(() => setIsShaking(false), 400);
+        return;
+      }
+
+      const evaluation = compareWords(essai, partie.solution);
+      const essais = [...partie.essais, essai];
+      const gagne = evaluation.every((statut) => statut === "correct");
+      const perdu = !gagne && essais.length >= MAX_ESSAIS;
+
+      let scoreObtenu = null;
+
+      if (gagne || perdu ) {
+          const date = sauvegarde.date;
+
+          scoreObtenu = calculerScore({
+              gagne,
+              essaisUtilises: essais.length,
+              indicesUtilises: partie.indicesUtilises,
+              longueurMot: partie.solution.length,
+          });
+
+          //Verif console
+          if (gagne) {
+              const essaisRestants = Math.max(MAX_ESSAIS - essais.length, 0);
+              const lettresBonus = Math.max(partie.solution.length - 4, 0);
+
+              const victoiresAvant = Object.values(sauvegarde.parties).filter(p => p.statut === "won").length;
+              const numeroVictoire = victoiresAvant + 1;
+              
+              console.log(
+                `📊 DÉTAIL DU CALCUL DES POINTS :
+                -----------------------------------
+                ✅ Victoire de base        : +100 pts
+                🎯 Essais restants (${essaisRestants})    : +${essaisRestants * 20} pts (20/essai)
+                📏 Lettres bonus (${lettresBonus})      : +${lettresBonus * 15} pts (15/lettre > 4)
+                💡 Indices utilisés (${partie.indicesUtilises}) : -${partie.indicesUtilises * 25} pts (25/indice)
+                -----------------------------------
+                💰 SCORE FINAL           : ${scoreObtenu} points`
+              );
+          } else {
+              console.log("📊 DÉTAIL DU CALCUL DES POINTS :\n❌ Défaite = 0 point.");
+          }
+
+
+          //Lecture de l'historique
+          const historique = lireHistorique();
+          //Verification points aujourd'hui
+          const scoreExistant = historique[date] || 0;
+          //Addition du nouveau score avec l'existant
+          const nouveauScoreDuJour = scoreExistant + (scoreObtenu || 0);
+          //Meilleur score gardé et sauvegarde
+          historique[date] = nouveauScoreDuJour;
+          ecrireHistorique(historique);
+
+          const statsCourantes = lireStatsGlobales();
+          const stats: StatsGlobales = statsCourantes ? statsCourantes : { partiesJouees: 0, 
+              victoires: 0, record: 0 };
+          
+          stats.record = Math.max(stats.record, nouveauScoreDuJour);
+
+          ecrireStatsGlobales(stats);
+
+      }
+
+      const grille: EtatPartie = {
+          ...partie,
+          essais,
+          evaluations: [...partie.evaluations, evaluation],
+          statutsLettres: fusionnerStatuts(
+              partie.statutsLettres,
+              essai,
+              evaluation,
+          ),
+          statut: gagne ? "won" : perdu ? "lost" : "playing",
+          score: scoreObtenu,
+      };
+
+      majPartie(wordLength, grille);
+      setCurrentGuess("");
+
+      if (gagne || perdu) {
+        setTimeout(() => {
+          window.dispatchEvent(new Event(EVENEMENT_MAJ_SCORE));
+        }, 50);
+      }
+  };
+
+  //L'ecoute du clavier est posée qu'une fois, la ref lui donne toujours la derniere version
+  const handleKeyPressRef = useRef(handleKeyPress);
+  useEffect(() => {
+      handleKeyPressRef.current = handleKeyPress;
+  });
+
+  useEffect(() => {
+      const onKeyDown = (event: KeyboardEvent) => {
+          if (event.ctrlKey || event.metaKey || event.altKey) return;
+          const touche = event.key.toUpperCase();
+
+          let action: string | null = null;
+          if (event.key === "Enter") action = "ENTRER";
+          else if (event.key === "Backspace") action = "SUPPRIMER";
+          else if (/^[A-Z]$/.test(touche)) action = touche;
+          if (!action) return;
+
+          setActiveKey(action);
+          setTimeout(() => setActiveKey(null), 150);
+          handleKeyPressRef.current(action);
+      };
+
+      window.addEventListener("keydown", onKeyDown);
+      return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
+  //Bouton indice
+  useEffect(() => {
+  const surDemandeIndice = () => {
+    if (!partie || partie.statut !== "playing") return;
+
+    const limiteIndices = calculerMaxIndices(wordLength);
+
+    if (partie.indicesUtilises >= limiteIndices) {
+      afficherToast(`${limiteIndices} indices maximum sur cette grille.`);
+      return;
+    }
+
+    //Lettres du mot ni vertes ni jaunes sur le clavier
+    const manquantes = [...new Set(partie.solution.split(""))].filter(
+      (lettre) =>
+        partie.statutsLettres[lettre] !== "correct" &&
+        partie.statutsLettres[lettre] !== "present",
+    );
+
+    if (manquantes.length === 0) {
+      afficherToast("Tu as déjà trouvé toutes les lettres !");
+      return;
+    }
+
+    const lettre = manquantes[Math.floor(Math.random() * manquantes.length)];
+    majPartie(wordLength, {
+      ...partie,
+      statutsLettres: { ...partie.statutsLettres, [lettre]: "present" },
+      indicesUtilises: partie.indicesUtilises + 1,
+    });
+    afficherToast(`Indice : le mot contient un ${lettre} (score réduit)`);
+  };
+
+  window.addEventListener(EVENEMENT_DEMANDE_INDICE, surDemandeIndice);
+  return () =>
+    window.removeEventListener(EVENEMENT_DEMANDE_INDICE, surDemandeIndice);
+}, [partie, wordLength, majPartie, afficherToast]);
+
+  const toutesGrillesJouees = sauvegarde ? LONGUEURS_DISPONIBLES.every((longueur) => 
+    sauvegarde.parties[longueur] && sauvegarde.parties[longueur].statut !== 'playing'): false;
+
+  const scoreTotalDuJour = sauvegarde ? (lireHistorique()[sauvegarde.date] || 0): 0;
+
+  const victoiresDuJour = sauvegarde ? Object.values(sauvegarde.parties)
+  .filter(partie => partie.statut === "won").length : 0;
+
+  //Bonus final ajouté à la fin de toutes les parties
+  const fermerBilanEtDonnerRecompense = () => {
+      if (!sauvegarde) return;
+
+      const cleRecompense = `bilan_ferme_${sauvegarde.date}`;
+      
+      // Si la récompense n'a pas encore été donnée
+      if (localStorage.getItem(cleRecompense) !== "true") {
+        const historique = lireHistorique();
+        const scoreExistant = historique[sauvegarde.date] || 0;
+        
+        // Calclul et addition du bonus final
+        const victoires = Object.values(sauvegarde.parties).filter(p => p.statut === "won").length;
+        const bonusFinal = victoires * 50;
+        const nouveauScoreFinal = scoreExistant + bonusFinal;
+        
+        historique[sauvegarde.date] = nouveauScoreFinal;
+        ecrireHistorique(historique);
+
+        // Mise à jour du record
+        const stats = lireStatsGlobales() || { partiesJouees: 0, victoires: 0, record: 0 };
+        stats.record = Math.max(stats.record, nouveauScoreFinal);
+        ecrireStatsGlobales(stats);
+
+        // On marque la récompense comme récupérée
+        localStorage.setItem(cleRecompense, "true");
+        
+        // Mise à jour de l'affichage
+        window.dispatchEvent(new Event(EVENEMENT_MAJ_SCORE));
+      }
+      // Fermeture de la fenêtre
+      setIsReportClosed(true);
     };
 
-    window.addEventListener(EVENEMENT_DEMANDE_INDICE, surDemandeIndice);
-    return () =>
-      window.removeEventListener(EVENEMENT_DEMANDE_INDICE, surDemandeIndice);
-  }, [partie, wordLength, majPartie, afficherToast]);
+    //Timer de 5 secondes avant ouverture message
+    useEffect(() => {
+      if (toutesGrillesJouees) {
+        const timer = setTimeout(() => {
+          setShowEndReport(true);
+        }, 3000);
+        return () => clearTimeout(timer);
+      }
+    }, [toutesGrillesJouees]);
 
-const toutesGrillesJouees = sauvegarde ? LONGUEURS_DISPONIBLES.every((longueur) => 
-  sauvegarde.parties[longueur] && sauvegarde.parties[longueur].statut !== 'playing'): false;
-
-const scoreTotalDuJour = sauvegarde ? (lireHistorique()[sauvegarde.date] || 0): 0;
 
   return (
     <div className="flex w-full flex-col items-center p-4">
@@ -316,8 +400,7 @@ const scoreTotalDuJour = sauvegarde ? (lireHistorique()[sauvegarde.date] || 0): 
                 wordLength === longueur
                   ? "scale-105 bg-blue-600 text-white ring-2 ring-blue-400"
                   : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-white"
-              }`}
-            >
+              }`}>
               {longueur}
             </button>
           ))}
@@ -331,13 +414,12 @@ const scoreTotalDuJour = sauvegarde ? (lireHistorique()[sauvegarde.date] || 0): 
           {toastMessage}
         </div>
       )}
-
       {erreur && (
         <button
           onClick={() => changerLongueur(wordLength)}
           className="mb-4 rounded-lg border border-red-800 bg-red-950/30 px-4 py-3 font-mono text-sm 
           text-red-400">
-          Mot du jour indisponible — réessayer
+          Mot du jour indisponible — Réessayer
         </button>
       )}
 
@@ -356,7 +438,6 @@ const scoreTotalDuJour = sauvegarde ? (lireHistorique()[sauvegarde.date] || 0): 
           <p className="text-lg font-bold">
             {partie.statut === "won" ? "Gagné !" : "Dommage..."}
           </p>
-
           {partie.statut === "lost" && (
             <div className="w-full rounded-xl border border-green-800 bg-green-950/20 p-3 text-center">
               <p className="font-mono text-xs tracking-widest text-green-600 uppercase">
@@ -369,7 +450,7 @@ const scoreTotalDuJour = sauvegarde ? (lireHistorique()[sauvegarde.date] || 0): 
           )}
 
           <p className="font-mono text-sm text-zinc-500">
-            <span className="font-black ">{partie.score ?? 0}</span>{" "}
+            +<span className="font-black ">{partie.score ?? 0}</span>{" "}
             points
           </p>
 
@@ -389,41 +470,63 @@ const scoreTotalDuJour = sauvegarde ? (lireHistorique()[sauvegarde.date] || 0): 
       )}
 
       <DevSolution solution={partie?.solution ?? ""} />
-      {/* MESSAGE DE FIN DE JOURNEE */}
-      {toutesGrillesJouees && !isReportClosed && (
+
+      {/* MESSAGE DE FIN DE PARTIE */}
+      {toutesGrillesJouees && showEndReport && !isReportClosed && (
         <div 
-          onClick={() => setIsReportClosed(true)}
+          onClick={fermerBilanEtDonnerRecompense}
           className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/80 p-4
           backdrop-blur-sm">
           <div
             onClick={(e) => e.stopPropagation()}
-            className="relative w-full max-w-sm rounded-3xl border border-blue-600/30 bg-zinc-900
+            className="relative w-full max-w-md rounded-3xl border border-blue-600/30 bg-zinc-900
             p-8 text-center shadow-2xl">
+
             {/* Bouton pour fermer la fenetre */}
             <button
-              onClick={() => setIsReportClosed(true)}
+              onClick={fermerBilanEtDonnerRecompense}
               className="absolute right-5 top-5 flex h-8 w-8 items-center justify-center rounded-full
               bg-zinc-800 text-zinc-400 transition-colors hover:bg-zinc-700 hover:text-white">
                 x
               </button>
-              <h2 className="font-mono text-lg font-bold tracking-widest text-blue-500 uppercase">
-                Bilan du Jour
-              </h2>
-              <p className="mt-3 text-sm text-zinc-400">
-                Mission accomplie, tu as terminé toutes les grilles de la journée !
-              </p>
+            <h2 className="font-mono text-lg font-bold tracking-widest text-blue-500 uppercase">
+              Bilan du Jour
+            </h2>
+            <p className="mt-3 text-sm text-zinc-400">
+              Bravo, tu as terminé toutes les grilles de la journée !
+            </p>
 
-              <div className="mt-6 rounded-2xl bg-zinc-950 py-4">
-                <p className="font-mono text-xs tracking-widest text-zinc-500 uppercase">
-                  Score Total</p>
-                <p className="mt-1 font-mono text-3xl font-black text-white">
-                  {scoreTotalDuJour} <span className="text-sm text-zinc-500">PTS</span>
-                </p>
+            <div className="mt-6 flex justify-around rounded-xl bg-zinc-950/50 p-4 border border-zinc-800">
+              <div className="flex flex-col items-center">
+                <span className="font-mono text-xs text-zinc-500 uppercase tracking-widest">Victoires</span>
+                <span className="font-mono text-xl font-bold text-white mt-1">{victoiresDuJour}/5</span>
               </div>
 
+              {/* Séparateur vertical */}
+              <div className="w-px bg-zinc-800"></div>
+              
+              <div className="flex flex-col items-center">
+                <span className="font-mono text-xs text-zinc-500 uppercase tracking-widest">Bonus</span>
+                <span className="font-mono text-xl font-bold text-green-400 mt-1">+{victoiresDuJour * 50} pts</span>
+              </div>
+            </div>
+            
+            <div className="mt-6 rounded-2xl bg-zinc-950 py-4">
+              <p className="font-mono text-xs tracking-widest text-zinc-500 uppercase">
+                Score Total</p>
+              <p className="mt-1 font-mono text-3xl font-black text-white">
+                {scoreTotalDuJour} <span className="text-sm text-zinc-500">PTS</span>
+              </p>
+            </div>
+            <div className="mt-6 flex flex-col items-center gap-3">
               <p className="mt-6 font-mono text-xs tracking-widest text-blue-400/50 uppercase">
                 Reviens demain pour de nouveaux mots
               </p>
+              <Countdown
+                onFin={() => changerLongueur(wordLength)}
+                className="font-mono text-2xl font-black tracking-widest text-blue-400"
+              />
+            </div>
           </div>
         </div>
       )}
