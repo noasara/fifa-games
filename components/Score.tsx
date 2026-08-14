@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { dateDuJour } from "@/lib/daily";
 import { EVENEMENT_MAJ_SCORE } from "@/lib/events";
-import { lireHistorique, lireStatsGlobales } from "@/lib/sauvegarde";
+import { lireHistorique, lireStatsGlobales, lireSauvegarde } from "@/lib/sauvegarde";
 
 
 export default function Score() {
@@ -11,23 +11,24 @@ export default function Score() {
     const [pointsDuJour, setPointsDuJour] = useState(0);
     const [record, setRecord] = useState(0);
     const [victoires, setVictoires] = useState(0);
-    const [partiesJouees, setPartiesJouees] = useState(0);
 
     useEffect(() => {
         const rafraichir = () => {
             const aujourdhui = dateDuJour();
             const historique = lireHistorique();
             setPointsDuJour(historique[aujourdhui] || 0);
-            const stats = lireStatsGlobales();
 
+            const sauvegarde = lireSauvegarde(aujourdhui);
+            const partiesJouees = Object.values(sauvegarde.parties);
+
+            const nbVictoires = partiesJouees.filter(partie => partie.statut === "won").length;
+            setVictoires(nbVictoires);
+
+            const stats = lireStatsGlobales();
             if (stats) {
                 setRecord(stats.record);
-                setPartiesJouees(stats.partiesJouees);
-                setVictoires(stats.victoires);
             } else {
                 setRecord(0);
-                setPartiesJouees(0);
-                setVictoires(0);
             }
         };
 
@@ -61,7 +62,7 @@ export default function Score() {
                 <div className="flex justify-between">
                     <dt>Victoires </dt>
                     <dd className="font-bold text-white">
-                        {victoires}/{partiesJouees}
+                        {victoires}/5
                     </dd>
                 </div>
             </dl>
