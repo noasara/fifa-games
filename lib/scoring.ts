@@ -1,7 +1,6 @@
 /** Score d'une grille */
 
 export const MAX_ESSAIS = 6;
-
 const POINTS_VICTOIRE = 100;
 const POINTS_PAR_ESSAIS_RESTANTS = 20;
 const POINTS_PAR_LETTRE_SUPP = 15;
@@ -22,9 +21,11 @@ export function calculerScore(partie: PartieTerminee): number {
     if (!partie.gagne) return 0;
     
     const essaisRestants = Math.max(MAX_ESSAIS - partie.essaisUtilises, 0);
-    const points = POINTS_VICTOIRE + essaisRestants * POINTS_PAR_ESSAIS_RESTANTS +
+
+    const points = POINTS_VICTOIRE + 
+        essaisRestants * POINTS_PAR_ESSAIS_RESTANTS +
         Math.max(partie.longueurMot - 4, 0) * POINTS_PAR_LETTRE_SUPP -
         partie.indicesUtilises * MALUS_PAR_INDICE;
 
-    return points;
+    return Math.max(points, 0);
 }
