@@ -7,7 +7,7 @@ import Hint from "@/components/Hint";
 export default function Home() {
   return (
     <main className="mx-auto flex min-h-screen max-w-6xl flex-col items-center px-2 pt-2 sm:pt-6">
-      <h1 className="mb-2 text-center font-mono text-xl sm:text-3xl font-bold tracking-wide uppercase 
+      <h1 className="mb-3 text-center font-mono text-xl sm:text-3xl font-bold tracking-wide uppercase 
         whitespace-nowrap">
         Wordle - Ligue 1
       </h1>

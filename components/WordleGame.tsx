@@ -413,7 +413,7 @@ export default function WordleGame() {
 
       {/* SELECTEUR TAILLE MOT */}
       <div className="mb-8 flex w-full flex-col items-center">
-        <span className="mb-2 font-mono text-xs tracking-wider text-zinc-400 uppercase">
+        <span className="mb-2 font-mono text-xs tracking-wider text-zinc-500 uppercase">
           Longueur du mot
         </span>
         <div className="flex gap-2">
@@ -475,8 +475,8 @@ export default function WordleGame() {
             </div>
           )}
 
-          <p className="font-mono text-sm text-zinc-500">
-            +<span className="font-black ">{partie.score ?? 0}</span>{" "}
+          <p className="font-mono text-sm text-green-500">
+            +<span className="font-black text-green-500">{partie.score ?? 0}</span>{" "}
             points
           </p>
 
