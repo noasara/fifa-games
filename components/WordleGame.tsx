@@ -55,6 +55,7 @@ export default function WordleGame() {
 
   const [isReportClosed, setIsReportClosed] = useState(false);
   const [showEndReport, setShowEndReport] = useState(false);
+  const [scoreAffiche, setScoreAffiche] = useState(0);
 
   useEffect(() => {
       if (sauvegarde) {
@@ -367,26 +368,51 @@ export default function WordleGame() {
       if (toutesGrillesJouees) {
         const timer = setTimeout(() => {
           setShowEndReport(true);
-        }, 3000);
+        }, 2000);
         return () => clearTimeout(timer);
       }
     }, [toutesGrillesJouees]);
 
 
+    const bonusDeFin = victoiresDuJour * 50;
+    const scoreCible = scoreTotalDuJour + bonusDeFin
+
+    useEffect(() => {
+      setScoreAffiche(scoreTotalDuJour);
+
+      if (showEndReport && bonusDeFin > 0) {
+        const delay = setTimeout(() => {
+          let current = scoreTotalDuJour;
+          const step = Math.max(1, Math.floor(bonusDeFin/20));
+
+          const interval = setInterval(() => {
+            current += step;
+            if (current >= scoreCible) {
+              setScoreAffiche(scoreCible);
+              clearInterval(interval);
+            } else {
+              setScoreAffiche(current);
+            }
+          }, 50);
+
+          return () => clearTimeout(interval);
+        }, 1000);
+
+        return () => clearTimeout(delay);
+      }
+    }, [showEndReport, scoreTotalDuJour, bonusDeFin, scoreCible]);
+
   return (
-    <div className="flex w-full flex-col items-center p-4">
+    <div className="flex w-full flex-col items-center px-4 pt-0 pb-2">
       {/* GRILLE DU JOUR */}
-      <div className="mb-6 flex flex-col items-center gap-1">
-        <span className="font-mono text-xs tracking-widest text-zinc-400 uppercase">
+      <div className="mb-3 flex flex-col items-center gap-1">
+        <span className="font-mono text- tracking-widest text-zinc-500 uppercase">
           {numeroGrille !== null ? `Grille n°${numeroGrille}` : "Chargement..."}
-        </span>
-        <span className="font-mono text-[11px] text-zinc-500">
-          Le même mot pour tout le monde, chaque jour.
         </span>
       </div>
 
       {/* SELECTEUR TAILLE MOT */}
-      <div className="mb-10 flex w-full flex-col items-center">
+      <div className="mb-8 flex w-full flex-col items-center">
         <span className="mb-2 font-mono text-xs tracking-wider text-zinc-400 uppercase">
           Longueur du mot
         </span>
@@ -434,7 +460,7 @@ export default function WordleGame() {
 
       {/* FIN DE GRILLE : pas de "Rejouer", il faut attendre demain */}
       {partie && partie.statut !== "playing" && (
-        <div className="mt-8 flex w-full max-w-xs flex-col items-center gap-3">
+        <div className="mt-4 flex w-full flex-col items-center gap-3">
           <p className="text-lg font-bold">
             {partie.statut === "won" ? "Gagné !" : "Dommage..."}
           </p>
@@ -513,9 +539,9 @@ export default function WordleGame() {
             
             <div className="mt-6 rounded-2xl bg-zinc-950 py-4">
               <p className="font-mono text-xs tracking-widest text-zinc-500 uppercase">
-                Score Total</p>
+                Score Final</p>
               <p className="mt-1 font-mono text-3xl font-black text-white">
-                {scoreTotalDuJour} <span className="text-sm text-zinc-500">PTS</span>
+                {scoreAffiche} <span className="text-sm text-zinc-500">PTS</span>
               </p>
             </div>
             <div className="mt-6 flex flex-col items-center gap-3">
@@ -532,7 +558,7 @@ export default function WordleGame() {
       )}
       
       {/* LE CLAVIER VIRTUEL */}
-      <div className="mt-12 w-full">
+      <div className="mt-6 w-full">
         <Keyboard
           onKeyPress={handleKeyPress}
           letterStatuses={partie?.statutsLettres ?? {}}

@@ -17,7 +17,7 @@ export default function Keyboard({ onKeyPress, letterStatuses, activeKey }: Keyb
 
 return (
     //conteneur principal du clavier
-    <div className="flex flex-col gap-2 items-center my-6 w-[500px] max-w-[100vw] mx-auto px-2">
+    <div className="flex flex-col gap-1.5 sm:gap-2 items-center mt-2 sm:my-4 w-full max-w-[500px] mx-auto px-1 sm:px-2">
       {rows.map((row, rowIndex) => (
         <div key={rowIndex} className="flex gap-1.5 justify-center w-full">
           {row.map((key) => {
@@ -50,9 +50,9 @@ return (
               <button
                 key={key}
                 onClick={() => onKeyPress(key)}
-                className={`h-14 rounded font-bold uppercase flex justify-center items-center
+                className={`h-12 sm:h-14 rounded font-bold uppercase flex justify-center items-center
                   transition-all duration-100 ease-out shadow-md
-                  ${isActionKey ? 'flex-[1.5] text-xs' : 'flex-1 text-sm'}
+                  ${isActionKey ? 'flex-[1.5] text-[10px] sm:text-xs' : 'flex-1 text-xs sm:text-sm'}
                   ${bgClass}
                   ${isPressed ? 'scale-90 brightness-150 shadow-inner ring-2 ring-white/50' :'scale-100'}
                   `}>

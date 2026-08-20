@@ -39,29 +39,31 @@ export default function Score() {
     
 
     return (
-        <div className="flex w-full max-w-[240px] flex-col gap-4">
-            <div>
-                <span className="mb-2 block font-mono text-xs tracking-widest text-zinc-400 uppercase">
+        <div className="flex w-full flex-row md:flex-col gap-3 sm:gap-4 justify-between items-stretch">
+            <div className="flex flex-col flex-1">
+                <span className="mb-1 sm:mb-2 block font-mono text-[10px] sm:text-xs tracking-widest text-zinc-400 
+                uppercase text-center md:text-left">
                     Score du jour
                 </span>
 
-                <div className="flex items-baseline gap-2 rounded-2xl bg-blue-600 px-6 py-2  ring-2 
-                ring-blue-400">
-                    <span className="font-mono text-2xl font-black text-white">
+                <div className="flex items-baseline gap-2 rounded-2xl bg-blue-600 px-2 sm:px-6 py-2
+                ring-blue-400 h-full">
+                    <span className="font-mono text-xl sm:text-2xl font-black text-white">
                         {pointsDuJour}
                     </span>
-                    <span className="font-mono text-xs text-blue-100">PTS</span>
+                    <span className="font-mono text-[10px] sm:text-xs text-blue-100">PTS</span>
                 </div>
             </div>
 
-            <dl className="rounded-xl border border border-zinc-800 bg-zinc-900/60 p-3 font-mono text-xs text-zinc-400">
-                <div className="flex justify-between">
-                    <dt>Record de points </dt>
-                    <dd className="font-bold text-white"> {record}</dd>
+            <dl className="flex flex-col justiify-center flex-1 rounded-xl border border-zinc-800 
+            bg-zinc-900/60 p-2 sm:p-3 font-mono text-[10px] sm:text-xs text-zinc-400">
+                <div className="flex justify-between items-center mb-1">
+                    <dt>Record </dt>
+                    <dd className="font-bold text-white text-right ml-2"> {record}</dd>
                 </div>
-                <div className="flex justify-between">
+                <div className="flex justify-between items-center">
                     <dt>Victoires </dt>
-                    <dd className="font-bold text-white">
+                    <dd className="font-bold text-white text-right ml-2">
                         {victoires}/5
                     </dd>
                 </div>
